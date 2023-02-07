@@ -40,7 +40,10 @@ use rust_serialization_benchmark::bench_serde_json;
 use rust_serialization_benchmark::bench_simd_json;
 #[cfg(feature = "speedy")]
 use rust_serialization_benchmark::bench_speedy;
-use rust_serialization_benchmark::generate_vec;
+use rust_serialization_benchmark::{
+    datasets::{log::LazyLogs, mesh::LazyMesh, minecraft_savedata::LazyPlayers},
+    generate_vec,
+};
 
 fn bench_log(c: &mut Criterion) {
     use rust_serialization_benchmark::datasets::log::{Log, Logs};
@@ -179,23 +182,29 @@ fn bench_log(c: &mut Criterion) {
     #[cfg(feature = "speedy")]
     bench_speedy::bench(BENCH, c, &data);
 
-    // Doesn't use a closure due to ICE in rustc. Probably related to https://github.com/rust-lang/rust/issues/86703
     #[cfg(feature = "alkahest")]
-    bench_alkahest::bench(BENCH, c, &data, read_alkahest_log);
+    bench_alkahest::bench(
+        BENCH,
+        c,
+        &data,
+        |bytes| {
+            let data = alkahest::deserialize::<Logs, LazyLogs>(bytes).unwrap().0;
+            black_box(data);
+        },
+        |bytes| {
+            let data = alkahest::deserialize::<Logs, LazyLogs>(bytes).unwrap().0;
+
+            for log in data.logs {
+                let log = log.unwrap();
+                black_box(&log.address);
+                black_box(log.code);
+                black_box(log.size);
+            }
+        },
+    );
 
     #[cfg(feature = "dlhn")]
     bench_dlhn::bench(BENCH, c, &data);
-}
-
-#[cfg(feature = "alkahest")]
-fn read_alkahest_log<'a>(
-    data: alkahest::Unpacked<'a, rust_serialization_benchmark::datasets::log::LogsSchema>,
-) {
-    for log in data.logs {
-        black_box(&log.address);
-        black_box(log.code);
-        black_box(log.size);
-    }
 }
 
 fn bench_mesh(c: &mut Criterion) {
@@ -320,19 +329,25 @@ fn bench_mesh(c: &mut Criterion) {
 
     // Doesn't use a closure due to ICE in rustc. Probably related to https://github.com/rust-lang/rust/issues/86703
     #[cfg(feature = "alkahest")]
-    bench_alkahest::bench(BENCH, c, &data, read_alkahest_mesh);
+    bench_alkahest::bench(
+        BENCH,
+        c,
+        &data,
+        |bytes| {
+            let mesh = alkahest::deserialize::<Mesh, LazyMesh>(bytes).unwrap().0;
+            black_box(mesh);
+        },
+        |bytes| {
+            let mesh = alkahest::deserialize::<Mesh, LazyMesh>(bytes).unwrap().0;
+            for triangle in mesh.triangles {
+                let triangle = triangle.unwrap();
+                black_box(&triangle.normal);
+            }
+        },
+    );
 
     #[cfg(feature = "dlhn")]
     bench_dlhn::bench(BENCH, c, &data);
-}
-
-#[cfg(feature = "alkahest")]
-fn read_alkahest_mesh<'a>(
-    mesh: alkahest::Unpacked<'a, rust_serialization_benchmark::datasets::mesh::MeshSchema>,
-) {
-    for triangle in mesh.triangles {
-        black_box(&triangle.normal);
-    }
 }
 
 fn bench_minecraft_savedata(c: &mut Criterion) {
@@ -460,19 +475,26 @@ fn bench_minecraft_savedata(c: &mut Criterion) {
     bench_speedy::bench(BENCH, c, &data);
 
     #[cfg(feature = "alkahest")]
-    bench_alkahest::bench(BENCH, c, &data, read_alkahest_minecraft_savedata);
-}
-
-#[cfg(feature = "alkahest")]
-fn read_alkahest_minecraft_savedata<'a>(
-    data: alkahest::Unpacked<
-        'a,
-        rust_serialization_benchmark::datasets::minecraft_savedata::PlayersSchema,
-    >,
-) {
-    for player in data.players {
-        black_box(&player.game_type);
-    }
+    bench_alkahest::bench(
+        BENCH,
+        c,
+        &data,
+        |bytes| {
+            let data = alkahest::deserialize::<Players, LazyPlayers>(bytes)
+                .unwrap()
+                .0;
+            black_box(data);
+        },
+        |bytes| {
+            let data = alkahest::deserialize::<Players, LazyPlayers>(bytes)
+                .unwrap()
+                .0;
+            for player in data.players {
+                let player = player.unwrap();
+                black_box(&player.game_type);
+            }
+        },
+    );
 }
 
 pub fn criterion_benchmark(c: &mut Criterion) {

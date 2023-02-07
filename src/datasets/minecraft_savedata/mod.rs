@@ -45,7 +45,10 @@ use crate::{generate_vec, Generate};
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
-#[cfg_attr(feature = "alkahest", derive(alkahest::Schema))]
+#[cfg_attr(
+    feature = "alkahest",
+    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+)]
 #[repr(u8)]
 pub enum GameType {
     Survival,
@@ -105,19 +108,6 @@ impl Into<pb::GameType> for GameType {
     }
 }
 
-#[cfg(feature = "alkahest")]
-impl alkahest::Pack<GameType> for GameType {
-    #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> (alkahest::Packed<GameType>, usize) {
-        match self {
-            GameType::Survival => GameTypeSurvivalPack.pack(offset, output),
-            GameType::Creative => GameTypeCreativePack.pack(offset, output),
-            GameType::Adventure => GameTypeAdventurePack.pack(offset, output),
-            GameType::Spectator => GameTypeSpectatorPack.pack(offset, output),
-        }
-    }
-}
-
 #[derive(Clone)]
 #[cfg_attr(feature = "abomonation", derive(abomonation_derive::Abomonation))]
 #[cfg_attr(
@@ -135,10 +125,23 @@ impl alkahest::Pack<GameType> for GameType {
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
+#[cfg_attr(
+    feature = "alkahest",
+    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+)]
 pub struct Item {
     pub count: i8,
     pub slot: u8,
     pub id: String,
+}
+
+#[cfg(feature = "alkahest")]
+#[derive(alkahest::Deserialize)]
+#[alkahest(for<'de: 'a> Item)]
+pub struct LazyItem<'a> {
+    pub count: i8,
+    pub slot: u8,
+    pub id: &'a str,
 }
 
 impl Generate for Item {
@@ -207,27 +210,6 @@ impl bench_prost::Serialize for Item {
     }
 }
 
-#[cfg(feature = "alkahest")]
-#[derive(alkahest::Schema)]
-pub struct ItemSchema {
-    pub count: i8,
-    pub slot: u8,
-    pub id: alkahest::Bytes,
-}
-
-#[cfg(feature = "alkahest")]
-impl alkahest::Pack<ItemSchema> for &'_ Item {
-    #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> (alkahest::Packed<ItemSchema>, usize) {
-        ItemSchemaPack {
-            count: self.count,
-            slot: self.slot,
-            id: self.id.as_bytes(),
-        }
-        .pack(offset, output)
-    }
-}
-
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "abomonation", derive(abomonation_derive::Abomonation))]
 #[cfg_attr(
@@ -245,7 +227,10 @@ impl alkahest::Pack<ItemSchema> for &'_ Item {
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
-#[cfg_attr(feature = "alkahest", derive(alkahest::Schema))]
+#[cfg_attr(
+    feature = "alkahest",
+    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+)]
 pub struct Abilities {
     pub walk_speed: f32,
     pub fly_speed: f32,
@@ -321,23 +306,6 @@ impl bench_prost::Serialize for Abilities {
     }
 }
 
-#[cfg(feature = "alkahest")]
-impl alkahest::Pack<Abilities> for Abilities {
-    #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> (alkahest::Packed<Abilities>, usize) {
-        AbilitiesPack {
-            walk_speed: self.walk_speed,
-            fly_speed: self.fly_speed,
-            may_fly: self.may_fly,
-            flying: self.flying,
-            invulnerable: self.invulnerable,
-            may_build: self.may_build,
-            instabuild: self.instabuild,
-        }
-        .pack(offset, output)
-    }
-}
-
 #[derive(Clone)]
 #[cfg_attr(feature = "abomonation", derive(abomonation_derive::Abomonation))]
 #[cfg_attr(
@@ -355,6 +323,10 @@ impl alkahest::Pack<Abilities> for Abilities {
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
+#[cfg_attr(
+    feature = "alkahest",
+    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+)]
 pub struct Entity {
     pub id: String,
     pub pos: (f64, f64, f64),
@@ -369,6 +341,28 @@ pub struct Entity {
     pub portal_cooldown: i32,
     pub uuid: [u32; 4],
     pub custom_name: Option<String>,
+    pub custom_name_visible: bool,
+    pub silent: bool,
+    pub glowing: bool,
+}
+
+#[cfg(feature = "alkahest")]
+#[derive(alkahest::Deserialize)]
+#[alkahest(for<'de: 'a> Entity)]
+pub struct LazyEntity<'a> {
+    pub id: &'a str,
+    pub pos: (f64, f64, f64),
+    pub motion: (f64, f64, f64),
+    pub rotation: (f32, f32),
+    pub fall_distance: f32,
+    pub fire: u16,
+    pub air: u16,
+    pub on_ground: bool,
+    pub no_gravity: bool,
+    pub invulnerable: bool,
+    pub portal_cooldown: i32,
+    pub uuid: [u32; 4],
+    pub custom_name: Option<&'a str>,
     pub custom_name_visible: bool,
     pub silent: bool,
     pub glowing: bool,
@@ -541,53 +535,6 @@ impl bench_prost::Serialize for Entity {
     }
 }
 
-#[cfg(feature = "alkahest")]
-#[derive(alkahest::Schema)]
-pub struct EntitySchema {
-    pub id: alkahest::Bytes,
-    pub pos: (f64, f64, f64),
-    pub motion: (f64, f64, f64),
-    pub rotation: (f32, f32),
-    pub fall_distance: f32,
-    pub fire: u16,
-    pub air: u16,
-    pub on_ground: bool,
-    pub no_gravity: bool,
-    pub invulnerable: bool,
-    pub portal_cooldown: i32,
-    pub uuid: [u32; 4],
-    pub custom_name: Option<alkahest::Bytes>,
-    pub custom_name_visible: bool,
-    pub silent: bool,
-    pub glowing: bool,
-}
-
-#[cfg(feature = "alkahest")]
-impl alkahest::Pack<EntitySchema> for &'_ Entity {
-    #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> (alkahest::Packed<EntitySchema>, usize) {
-        EntitySchemaPack {
-            id: self.id.as_bytes(),
-            pos: (self.pos.0, self.pos.1, self.pos.2),
-            motion: (self.motion.0, self.motion.1, self.motion.2),
-            rotation: (self.rotation.0, self.rotation.1),
-            fall_distance: self.fall_distance,
-            fire: self.fire,
-            air: self.air,
-            on_ground: self.on_ground,
-            no_gravity: self.no_gravity,
-            invulnerable: self.invulnerable,
-            portal_cooldown: self.portal_cooldown,
-            uuid: self.uuid,
-            custom_name: self.custom_name.as_ref().map(|s| s.as_bytes()),
-            custom_name_visible: self.custom_name_visible,
-            silent: self.silent,
-            glowing: self.glowing,
-        }
-        .pack(offset, output)
-    }
-}
-
 #[derive(Clone)]
 #[cfg_attr(feature = "abomonation", derive(abomonation_derive::Abomonation))]
 #[cfg_attr(
@@ -605,9 +552,29 @@ impl alkahest::Pack<EntitySchema> for &'_ Entity {
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
+#[cfg_attr(
+    feature = "alkahest",
+    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+)]
 pub struct RecipeBook {
     pub recipes: Vec<String>,
     pub to_be_displayed: Vec<String>,
+    pub is_filtering_craftable: bool,
+    pub is_gui_open: bool,
+    pub is_furnace_filtering_craftable: bool,
+    pub is_furnace_gui_open: bool,
+    pub is_blasting_furnace_filtering_craftable: bool,
+    pub is_blasting_furnace_gui_open: bool,
+    pub is_smoker_filtering_craftable: bool,
+    pub is_smoker_gui_open: bool,
+}
+
+#[cfg(feature = "alkahest")]
+#[derive(alkahest::Deserialize)]
+#[alkahest(for<'de: 'a> RecipeBook)]
+pub struct LazyRecipeBook<'a> {
+    pub recipes: alkahest::LazySlice<'a, String, &'a str>,
+    pub to_be_displayed: alkahest::LazySlice<'a, String, &'a str>,
     pub is_filtering_craftable: bool,
     pub is_gui_open: bool,
     pub is_furnace_filtering_craftable: bool,
@@ -747,41 +714,6 @@ impl bench_prost::Serialize for RecipeBook {
     }
 }
 
-#[cfg(feature = "alkahest")]
-#[derive(alkahest::Schema)]
-pub struct RecipeBookSchema {
-    pub recipes: alkahest::Seq<alkahest::Bytes>,
-    pub to_be_displayed: alkahest::Seq<alkahest::Bytes>,
-    pub is_filtering_craftable: bool,
-    pub is_gui_open: bool,
-    pub is_furnace_filtering_craftable: bool,
-    pub is_furnace_gui_open: bool,
-    pub is_blasting_furnace_filtering_craftable: bool,
-    pub is_blasting_furnace_gui_open: bool,
-    pub is_smoker_filtering_craftable: bool,
-    pub is_smoker_gui_open: bool,
-}
-
-#[cfg(feature = "alkahest")]
-impl alkahest::Pack<RecipeBookSchema> for &'_ RecipeBook {
-    #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> (alkahest::Packed<RecipeBookSchema>, usize) {
-        RecipeBookSchemaPack {
-            recipes: self.recipes.iter().map(|s| s.as_bytes()),
-            to_be_displayed: self.to_be_displayed.iter().map(|s| s.as_bytes()),
-            is_filtering_craftable: self.is_filtering_craftable,
-            is_gui_open: self.is_gui_open,
-            is_furnace_filtering_craftable: self.is_furnace_filtering_craftable,
-            is_furnace_gui_open: self.is_furnace_gui_open,
-            is_blasting_furnace_filtering_craftable: self.is_blasting_furnace_filtering_craftable,
-            is_blasting_furnace_gui_open: self.is_blasting_furnace_gui_open,
-            is_smoker_filtering_craftable: self.is_smoker_filtering_craftable,
-            is_smoker_gui_open: self.is_smoker_gui_open,
-        }
-        .pack(offset, output)
-    }
-}
-
 #[derive(Clone)]
 #[cfg_attr(feature = "abomonation", derive(abomonation_derive::Abomonation))]
 #[cfg_attr(
@@ -799,6 +731,10 @@ impl alkahest::Pack<RecipeBookSchema> for &'_ RecipeBook {
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
+#[cfg_attr(
+    feature = "alkahest",
+    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+)]
 pub struct Player {
     pub game_type: GameType,
     pub previous_game_type: GameType,
@@ -828,6 +764,40 @@ pub struct Player {
     pub shoulder_entity_right: Option<Entity>,
     pub seen_credits: bool,
     pub recipe_book: RecipeBook,
+}
+
+#[cfg(feature = "alkahest")]
+#[derive(alkahest::Deserialize)]
+#[alkahest(for<'de: 'a> Player)]
+pub struct LazyPlayer<'a> {
+    pub game_type: GameType,
+    pub previous_game_type: GameType,
+    pub score: i64,
+    pub dimension: &'a str,
+    pub selected_item_slot: u32,
+    pub selected_item: LazyItem<'a>,
+    pub spawn_dimension: Option<&'a str>,
+    pub spawn_x: i64,
+    pub spawn_y: i64,
+    pub spawn_z: i64,
+    pub spawn_forced: Option<bool>,
+    pub sleep_timer: u16,
+    pub food_exhaustion_level: f32,
+    pub food_saturation_level: f32,
+    pub food_tick_timer: u32,
+    pub xp_level: u32,
+    pub xp_p: f32,
+    pub xp_total: i32,
+    pub xp_seed: i32,
+    pub inventory: alkahest::LazySlice<'a, Item, LazyItem<'a>>,
+    pub ender_items: alkahest::LazySlice<'a, Item, LazyItem<'a>>,
+    pub abilities: Abilities,
+    pub entered_nether_position: Option<(f64, f64, f64)>,
+    pub root_vehicle: Option<([u32; 4], LazyEntity<'a>)>,
+    pub shoulder_entity_left: Option<LazyEntity<'a>>,
+    pub shoulder_entity_right: Option<LazyEntity<'a>>,
+    pub seen_credits: bool,
+    pub recipe_book: LazyRecipeBook<'a>,
 }
 
 #[cfg(feature = "rkyv")]
@@ -1140,83 +1110,6 @@ impl bench_prost::Serialize for Player {
     }
 }
 
-#[cfg(feature = "alkahest")]
-#[derive(alkahest::Schema)]
-pub struct PlayerSchema {
-    pub game_type: GameType,
-    pub previous_game_type: GameType,
-    pub score: i64,
-    pub dimension: alkahest::Bytes,
-    pub selected_item_slot: u32,
-    pub selected_item: ItemSchema,
-    pub spawn_dimension: Option<alkahest::Bytes>,
-    pub spawn_x: i64,
-    pub spawn_y: i64,
-    pub spawn_z: i64,
-    pub spawn_forced: Option<bool>,
-    pub sleep_timer: u16,
-    pub food_exhaustion_level: f32,
-    pub food_saturation_level: f32,
-    pub food_tick_timer: u32,
-    pub xp_level: u32,
-    pub xp_p: f32,
-    pub xp_total: i32,
-    pub xp_seed: i32,
-    pub inventory: alkahest::Seq<ItemSchema>,
-    pub ender_items: alkahest::Seq<ItemSchema>,
-    pub abilities: Abilities,
-    pub entered_nether_position: Option<(f64, f64, f64)>,
-    pub root_vehicle: Option<([u32; 4], EntitySchema)>,
-    pub shoulder_entity_left: Option<EntitySchema>,
-    pub shoulder_entity_right: Option<EntitySchema>,
-    pub seen_credits: bool,
-    pub recipe_book: RecipeBookSchema,
-}
-
-#[cfg(feature = "alkahest")]
-impl alkahest::Pack<PlayerSchema> for &'_ Player {
-    #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> (alkahest::Packed<PlayerSchema>, usize) {
-        PlayerSchemaPack {
-            game_type: self.game_type,
-            previous_game_type: self.previous_game_type,
-            score: self.score,
-            dimension: self.dimension.as_bytes(),
-            selected_item_slot: self.selected_item_slot,
-            selected_item: &self.selected_item,
-            spawn_dimension: self.spawn_dimension.as_ref().map(|s| s.as_bytes()),
-            spawn_x: self.spawn_x,
-            spawn_y: self.spawn_y,
-            spawn_z: self.spawn_z,
-            spawn_forced: self.spawn_forced,
-            sleep_timer: self.sleep_timer,
-            food_exhaustion_level: self.food_exhaustion_level,
-            food_saturation_level: self.food_saturation_level,
-            food_tick_timer: self.food_tick_timer,
-            xp_level: self.xp_level,
-            xp_p: self.xp_p,
-            xp_total: self.xp_total,
-            xp_seed: self.xp_seed,
-            inventory: self.inventory.iter(),
-            ender_items: self.ender_items.iter(),
-            abilities: self.abilities,
-            entered_nether_position: self
-                .entered_nether_position
-                .as_ref()
-                .map(|p| (p.0, p.1, p.2)),
-            root_vehicle: self
-                .root_vehicle
-                .as_ref()
-                .map(|(array, entity)| (array, entity)),
-            shoulder_entity_left: self.shoulder_entity_left.as_ref(),
-            shoulder_entity_right: self.shoulder_entity_right.as_ref(),
-            seen_credits: self.seen_credits,
-            recipe_book: &self.recipe_book,
-        }
-        .pack(offset, output)
-    }
-}
-
 #[derive(Clone)]
 #[cfg_attr(feature = "abomonation", derive(abomonation_derive::Abomonation))]
 #[cfg_attr(
@@ -1234,8 +1127,19 @@ impl alkahest::Pack<PlayerSchema> for &'_ Player {
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
+#[cfg_attr(
+    feature = "alkahest",
+    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+)]
 pub struct Players {
     pub players: Vec<Player>,
+}
+
+#[cfg(feature = "alkahest")]
+#[derive(alkahest::Deserialize)]
+#[alkahest(for<'de: 'a> Players)]
+pub struct LazyPlayers<'a> {
+    pub players: alkahest::LazySlice<'a, Player, LazyPlayer<'a>>,
 }
 
 #[cfg(feature = "rkyv")]
@@ -1295,21 +1199,5 @@ impl bench_prost::Serialize for Players {
             result.players.push(player.serialize_pb());
         }
         result
-    }
-}
-
-#[cfg(feature = "alkahest")]
-#[derive(alkahest::Schema)]
-pub struct PlayersSchema {
-    pub players: alkahest::Seq<PlayerSchema>,
-}
-
-#[cfg(feature = "alkahest")]
-impl alkahest::Pack<PlayersSchema> for &'_ Players {
-    fn pack(self, offset: usize, output: &mut [u8]) -> (alkahest::Packed<PlayersSchema>, usize) {
-        PlayersSchemaPack {
-            players: self.players.iter(),
-        }
-        .pack(offset, output)
     }
 }

@@ -50,8 +50,11 @@ fn main() {
     const DATASETS: [&str; 3] = ["log", "mesh", "minecraft_savedata"];
     for &name in DATASETS.iter() {
         // bebop_compile_dataset(name);
+        #[cfg(feature = "capnp")]
         capnpc_compile_dataset(name).unwrap();
+        #[cfg(feature = "flatbuffers")]
         flatc_compile_dataset(name).unwrap();
+        #[cfg(feature = "prost")]
         prost_compile_dataset(name).unwrap();
     }
 }

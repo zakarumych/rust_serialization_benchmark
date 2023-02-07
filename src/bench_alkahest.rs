@@ -1,40 +1,49 @@
-use alkahest::{Pack, Schema, Unpacked};
+use alkahest::{deserialize, serialize, Deserialize, Formula, Serialize};
 use criterion::{black_box, Criterion};
 
-pub fn bench<T, D>(name: &'static str, c: &mut Criterion, data: D, read: fn(Unpacked<'_, T>))
+pub fn bench<T, A, R>(name: &'static str, c: &mut Criterion, data: &T, access: A, read: R)
 where
-    T: Schema,
-    D: Pack<T> + Copy,
+    T: Formula,
+    for<'de> T: Deserialize<'de, T>,
+    for<'a> &'a T: Serialize<T>,
+    A: Fn(&[u8]),
+    R: Fn(&[u8]),
 {
     let mut group = c.benchmark_group(format!("{}/alkahest", name));
 
-    // This leak is required because of ICE in rustc if `R` has bound like this `for<'a> Fn(Unpacked<'a, T>)`.
-    const BUFFER_LEN: usize = 8_388_608;
-    let mut buffer = vec![0u64; BUFFER_LEN];
-    let bytes: &mut [u8] = bytemuck::cast_slice_mut(&mut buffer[..]);
+    const BUFFER_LEN: usize = 10_000_000;
+    let mut buffer = vec![0u8; BUFFER_LEN];
+
     let mut size = 0;
 
     group.bench_function("serialize", |b| {
         b.iter(|| {
-            size = alkahest::write::<T, _>(bytes, black_box(data));
+            size = serialize::<T, &T>(black_box(data), &mut buffer).unwrap();
             black_box(());
         })
     });
 
-    group.bench_function("access (validated on-demand with panic)", |b| {
+    group.bench_function("deserialize", |b| {
         b.iter(|| {
-            black_box(alkahest::read::<T>(black_box(&bytes[..size])));
+            black_box(deserialize::<T, T>(black_box(&buffer)).unwrap());
         })
     });
 
-    group.bench_function("read (validated on-demand with panic)", |b| {
+    group.bench_function("access (validated)", |b| {
         b.iter(|| {
-            read(alkahest::read::<T>(black_box(&bytes[..size])));
+            access(&buffer);
             black_box(());
         })
     });
 
-    crate::bench_size(name, "alkahest", &bytes[..size]);
+    group.bench_function("read (validated)", |b| {
+        b.iter(|| {
+            read(&buffer);
+            black_box(());
+        })
+    });
+
+    crate::bench_size(name, "alkahest", &buffer);
 
     group.finish();
 }
