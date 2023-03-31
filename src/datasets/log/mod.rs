@@ -137,7 +137,7 @@ pub struct Log {
 
 #[cfg(feature = "alkahest")]
 #[derive(alkahest::Deserialize)]
-#[alkahest(for<'de: 'a> Log)]
+#[alkahest(Log)]
 pub struct LazyLog<'a> {
     pub address: Address,
     pub identity: &'a str,
@@ -307,17 +307,23 @@ impl bench_prost::Serialize for Log {
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
 #[cfg_attr(
     feature = "alkahest",
-    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+    derive(alkahest::Serialize, alkahest::Deserialize),
+    alkahest(LogsFormula)
 )]
 pub struct Logs {
     pub logs: Vec<Log>,
 }
 
+#[cfg_attr(feature = "alkahest", derive(alkahest::Formula))]
+pub struct LogsFormula {
+    pub logs: [Log],
+}
+
 #[cfg(feature = "alkahest")]
 #[derive(alkahest::Deserialize)]
-#[alkahest(for<'de: 'a> Logs)]
+#[alkahest(LogsFormula)]
 pub struct LazyLogs<'a> {
-    pub logs: alkahest::LazySlice<'a, Log, LazyLog<'a>>,
+    pub logs: alkahest::Lazy<'a, [Log]>,
 }
 
 #[cfg(feature = "rkyv")]

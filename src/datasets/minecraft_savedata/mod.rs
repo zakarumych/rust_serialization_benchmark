@@ -571,10 +571,10 @@ pub struct RecipeBook {
 
 #[cfg(feature = "alkahest")]
 #[derive(alkahest::Deserialize)]
-#[alkahest(for<'de: 'a> RecipeBook)]
+#[alkahest(RecipeBook)]
 pub struct LazyRecipeBook<'a> {
-    pub recipes: alkahest::LazySlice<'a, String, &'a str>,
-    pub to_be_displayed: alkahest::LazySlice<'a, String, &'a str>,
+    pub recipes: alkahest::Lazy<'a, [String]>,
+    pub to_be_displayed: alkahest::Lazy<'a, [String]>,
     pub is_filtering_craftable: bool,
     pub is_gui_open: bool,
     pub is_furnace_filtering_craftable: bool,
@@ -768,7 +768,7 @@ pub struct Player {
 
 #[cfg(feature = "alkahest")]
 #[derive(alkahest::Deserialize)]
-#[alkahest(for<'de: 'a> Player)]
+#[alkahest(Player)]
 pub struct LazyPlayer<'a> {
     pub game_type: GameType,
     pub previous_game_type: GameType,
@@ -789,8 +789,8 @@ pub struct LazyPlayer<'a> {
     pub xp_p: f32,
     pub xp_total: i32,
     pub xp_seed: i32,
-    pub inventory: alkahest::LazySlice<'a, Item, LazyItem<'a>>,
-    pub ender_items: alkahest::LazySlice<'a, Item, LazyItem<'a>>,
+    pub inventory: alkahest::Lazy<'a, [Item]>,
+    pub ender_items: alkahest::Lazy<'a, [Item]>,
     pub abilities: Abilities,
     pub entered_nether_position: Option<(f64, f64, f64)>,
     pub root_vehicle: Option<([u32; 4], LazyEntity<'a>)>,
@@ -1139,7 +1139,7 @@ pub struct Players {
 #[derive(alkahest::Deserialize)]
 #[alkahest(for<'de: 'a> Players)]
 pub struct LazyPlayers<'a> {
-    pub players: alkahest::LazySlice<'a, Player, LazyPlayer<'a>>,
+    pub players: alkahest::Lazy<'a, [Player]>,
 }
 
 #[cfg(feature = "rkyv")]

@@ -199,17 +199,24 @@ impl bench_prost::Serialize for Triangle {
 #[cfg_attr(feature = "speedy", derive(speedy::Readable, speedy::Writable))]
 #[cfg_attr(
     feature = "alkahest",
-    derive(alkahest::Formula, alkahest::Serialize, alkahest::Deserialize)
+    derive(alkahest::Serialize, alkahest::Deserialize)
 )]
+#[cfg_attr(feature = "alkahest", alkahest(MeshFormula))]
 pub struct Mesh {
     pub triangles: Vec<Triangle>,
 }
 
 #[cfg(feature = "alkahest")]
+#[derive(alkahest::Formula)]
+pub struct MeshFormula {
+    pub triangles: [Triangle],
+}
+
+#[cfg(feature = "alkahest")]
 #[derive(alkahest::Deserialize)]
-#[alkahest(for<'de: 'a> Mesh)]
+#[alkahest(MeshFormula)]
 pub struct LazyMesh<'a> {
-    pub triangles: alkahest::LazySlice<'a, Triangle>,
+    pub triangles: alkahest::Lazy<'a, [Triangle]>,
 }
 
 #[cfg(feature = "rkyv")]

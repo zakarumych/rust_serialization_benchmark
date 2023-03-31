@@ -41,7 +41,11 @@ use rust_serialization_benchmark::bench_simd_json;
 #[cfg(feature = "speedy")]
 use rust_serialization_benchmark::bench_speedy;
 use rust_serialization_benchmark::{
-    datasets::{log::LazyLogs, mesh::LazyMesh, minecraft_savedata::LazyPlayers},
+    datasets::{
+        log::{LazyLog, LazyLogs, LogsFormula},
+        mesh::{LazyMesh, MeshFormula},
+        minecraft_savedata::{LazyPlayer, LazyPlayers},
+    },
     generate_vec,
 };
 
@@ -56,10 +60,24 @@ fn bench_log(c: &mut Criterion) {
 
     let mut rng = Lcg64Xsh32::new(STATE, STREAM);
 
-    const LOGS: usize = 10_000;
+    const LOGS: usize = 10_0;
     let data = Logs {
         logs: generate_vec::<_, Log>(&mut rng, LOGS..LOGS + 1),
     };
+
+    #[cfg(feature = "alkahest")]
+    bench_alkahest::bench::<LogsFormula, Logs, _>(BENCH, c, &data, |bytes| {
+        let data = alkahest::deserialize::<LogsFormula, LazyLogs>(bytes)
+            .unwrap()
+            .0;
+
+        for log in data.logs.iter::<LazyLog>() {
+            let log = log.unwrap();
+            black_box(&log.address);
+            black_box(log.code);
+            black_box(log.size);
+        }
+    });
 
     #[cfg(feature = "abomonation")]
     bench_abomonation::bench(BENCH, c, &data, |data| {
@@ -74,7 +92,13 @@ fn bench_log(c: &mut Criterion) {
     bench_bare::bench(BENCH, c, &data);
 
     #[cfg(feature = "bincode")]
-    bench_bincode::bench(BENCH, c, &data);
+    bench_bincode::bench(BENCH, c, &data, |data| {
+        for log in data.logs.iter() {
+            black_box(&log.address);
+            black_box(log.code);
+            black_box(log.size);
+        }
+    });
 
     #[cfg(feature = "borsh")]
     bench_borsh::bench(BENCH, c, &data);
@@ -180,28 +204,13 @@ fn bench_log(c: &mut Criterion) {
     bench_simd_json::bench(BENCH, c, &data);
 
     #[cfg(feature = "speedy")]
-    bench_speedy::bench(BENCH, c, &data);
-
-    #[cfg(feature = "alkahest")]
-    bench_alkahest::bench(
-        BENCH,
-        c,
-        &data,
-        |bytes| {
-            let data = alkahest::deserialize::<Logs, LazyLogs>(bytes).unwrap().0;
-            black_box(data);
-        },
-        |bytes| {
-            let data = alkahest::deserialize::<Logs, LazyLogs>(bytes).unwrap().0;
-
-            for log in data.logs {
-                let log = log.unwrap();
-                black_box(&log.address);
-                black_box(log.code);
-                black_box(log.size);
-            }
-        },
-    );
+    bench_speedy::bench(BENCH, c, &data, |data| {
+        for log in data.logs.iter() {
+            black_box(&log.address);
+            black_box(log.code);
+            black_box(log.size);
+        }
+    });
 
     #[cfg(feature = "dlhn")]
     bench_dlhn::bench(BENCH, c, &data);
@@ -218,10 +227,21 @@ fn bench_mesh(c: &mut Criterion) {
 
     let mut rng = Lcg64Xsh32::new(STATE, STREAM);
 
-    const TRIANGLES: usize = 125_000;
+    const TRIANGLES: usize = 125_0;
     let data = Mesh {
         triangles: generate_vec::<_, Triangle>(&mut rng, TRIANGLES..TRIANGLES + 1),
     };
+
+    #[cfg(feature = "alkahest")]
+    bench_alkahest::bench::<MeshFormula, Mesh, _>(BENCH, c, &data, |bytes| {
+        let mesh = alkahest::deserialize::<MeshFormula, LazyMesh>(bytes)
+            .unwrap()
+            .0;
+        mesh.triangles.iter::<Triangle>().for_each(|triangle| {
+            let triangle = triangle.unwrap();
+            black_box(&triangle.normal);
+        });
+    });
 
     #[cfg(feature = "abomonation")]
     bench_abomonation::bench(BENCH, c, &data, |data| {
@@ -234,7 +254,11 @@ fn bench_mesh(c: &mut Criterion) {
     bench_bare::bench(BENCH, c, &data);
 
     #[cfg(feature = "bincode")]
-    bench_bincode::bench(BENCH, c, &data);
+    bench_bincode::bench(BENCH, c, &data, |mesh| {
+        mesh.triangles.iter().for_each(|triangle| {
+            black_box(triangle.normal);
+        });
+    });
 
     #[cfg(feature = "borsh")]
     bench_borsh::bench(BENCH, c, &data);
@@ -325,26 +349,11 @@ fn bench_mesh(c: &mut Criterion) {
     bench_simd_json::bench(BENCH, c, &data);
 
     #[cfg(feature = "speedy")]
-    bench_speedy::bench(BENCH, c, &data);
-
-    // Doesn't use a closure due to ICE in rustc. Probably related to https://github.com/rust-lang/rust/issues/86703
-    #[cfg(feature = "alkahest")]
-    bench_alkahest::bench(
-        BENCH,
-        c,
-        &data,
-        |bytes| {
-            let mesh = alkahest::deserialize::<Mesh, LazyMesh>(bytes).unwrap().0;
-            black_box(mesh);
-        },
-        |bytes| {
-            let mesh = alkahest::deserialize::<Mesh, LazyMesh>(bytes).unwrap().0;
-            for triangle in mesh.triangles {
-                let triangle = triangle.unwrap();
-                black_box(&triangle.normal);
-            }
-        },
-    );
+    bench_speedy::bench(BENCH, c, &data, |mesh| {
+        mesh.triangles.iter().for_each(|triangle| {
+            black_box(triangle.normal);
+        });
+    });
 
     #[cfg(feature = "dlhn")]
     bench_dlhn::bench(BENCH, c, &data);
@@ -361,10 +370,21 @@ fn bench_minecraft_savedata(c: &mut Criterion) {
 
     let mut rng = Lcg64Xsh32::new(STATE, STREAM);
 
-    const PLAYERS: usize = 500;
+    const PLAYERS: usize = 5;
     let data = Players {
         players: generate_vec::<_, Player>(&mut rng, PLAYERS..PLAYERS + 1),
     };
+
+    #[cfg(feature = "alkahest")]
+    bench_alkahest::bench::<Players, Players, _>(BENCH, c, &data, |bytes| {
+        let data = alkahest::deserialize::<Players, LazyPlayers>(bytes)
+            .unwrap()
+            .0;
+        for player in data.players.iter::<LazyPlayer>() {
+            let player = player.unwrap();
+            black_box(&player.game_type);
+        }
+    });
 
     #[cfg(feature = "abomonation")]
     bench_abomonation::bench(BENCH, c, &data, |data| {
@@ -377,7 +397,11 @@ fn bench_minecraft_savedata(c: &mut Criterion) {
     bench_bare::bench(BENCH, c, &data);
 
     #[cfg(feature = "bincode")]
-    bench_bincode::bench(BENCH, c, &data);
+    bench_bincode::bench(BENCH, c, &data, |data| {
+        for player in data.players.iter() {
+            black_box(&player.game_type);
+        }
+    });
 
     #[cfg(feature = "borsh")]
     bench_borsh::bench(BENCH, c, &data);
@@ -472,29 +496,14 @@ fn bench_minecraft_savedata(c: &mut Criterion) {
     bench_simd_json::bench(BENCH, c, &data);
 
     #[cfg(feature = "speedy")]
-    bench_speedy::bench(BENCH, c, &data);
+    bench_speedy::bench(BENCH, c, &data, |data| {
+        for player in data.players.iter() {
+            black_box(&player.game_type);
+        }
+    });
 
-    #[cfg(feature = "alkahest")]
-    bench_alkahest::bench(
-        BENCH,
-        c,
-        &data,
-        |bytes| {
-            let data = alkahest::deserialize::<Players, LazyPlayers>(bytes)
-                .unwrap()
-                .0;
-            black_box(data);
-        },
-        |bytes| {
-            let data = alkahest::deserialize::<Players, LazyPlayers>(bytes)
-                .unwrap()
-                .0;
-            for player in data.players {
-                let player = player.unwrap();
-                black_box(&player.game_type);
-            }
-        },
-    );
+    #[cfg(feature = "dlhn")]
+    bench_dlhn::bench(BENCH, c, &data);
 }
 
 pub fn criterion_benchmark(c: &mut Criterion) {
